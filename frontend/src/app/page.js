@@ -1,5 +1,7 @@
 // frontend/src/app/page.js
 "use client";
+
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isAuthenticated } from "@/utils/auth.js";
@@ -9,7 +11,7 @@ import TeacherDashboard from "@/components/pages/TeacherDashboard";
 import { useError } from "@/contexts/ErrorContext";
 import { useSuccess } from "@/contexts/SuccessContext";
 
-const Home = () => {
+const HomeComponent = () => {
   const [auth, setAuth] = useState(null);
   const [role, setRole] = useState(null);
   const router = useRouter();
@@ -92,5 +94,11 @@ const Home = () => {
 
   return auth ? (role === 'student' ? <StudentDashboard /> : <TeacherDashboard />) : <LandingPage />;
 };
+
+const Home = () => (
+  <Suspense fallback={<div>Loading...</div>}>
+    <HomeComponent />
+  </Suspense>
+)
 
 export default Home;
