@@ -17,6 +17,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "build": "npm install",
     "test": "echo \"Error: no test specified, try \"npm run dev\"\" && exit 1"
   },
   "dependencies": {
