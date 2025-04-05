@@ -1,11 +1,13 @@
-"use client";
+// app/page.jsx
 import { Suspense } from "react";
-import HomeComponent from "./HomeComponent";
+import Home from "./Home";
 
-const HomePage = () => (
-  <Suspense fallback={<div>Loading...</div>}>
-    <HomeComponent />
-  </Suspense>
-);
+export const dynamic = "force-dynamic";
 
-export default HomePage;
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div>Loading homepage...</div>}>
+      <Home />
+    </Suspense>
+  );
+}

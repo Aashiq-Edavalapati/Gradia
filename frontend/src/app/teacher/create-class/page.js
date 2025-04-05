@@ -1,8 +1,9 @@
 'use client';
+
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Copy, Upload, UserPlus, X, Check } from 'lucide-react';
+import { ArrowLeft, Copy, Upload, UserPlus, X, Check, File } from 'lucide-react';
 import instance from '@/utils/axios.js';
 import { UserDropdown } from '@/components/dashboard/UserDropdown';
 import { useError } from '@/contexts/ErrorContext';
@@ -11,27 +12,18 @@ import { isAuthenticated } from '@/utils/auth';
 export default function CreateClass() {
   const [className, setClassName] = useState('');
   const [classDescription, setClassDescription] = useState('');
-  const [subjects, setSubjects] = useState([]);
-  const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [subject, setSubject] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
   const [studentList, setStudentList] = useState([]);
-  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
   const [classCode, setClassCode] = useState('GRD-' + Math.random().toString(36).substring(2, 8).toUpperCase());
   const [loading, setLoading] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [classFiles, setClassFiles] = useState([]);
   
   const fileInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
   const router = useRouter();
   const { showError } = useError();
-  
-  // Mock subjects - in a real app, these would come from an API
-  const availableSubjects = [
-    'Operating Systems', 
-    'Design and Analysis of Algorithms', 
-    'Data Structures', 
-    'Computer Networks',
-    'Database Management'
-  ];
   
   // Check if user is a teacher
   useEffect(() => {
@@ -97,6 +89,26 @@ export default function CreateClass() {
     }
   };
   
+  // Handle PDF file uploads
+  const handlePdfUpload = (event) => {
+    const files = Array.from(event.target.files);
+    
+    // Validate file types (PDF only)
+    const invalidFiles = files.filter(file => file.type !== 'application/pdf');
+    if (invalidFiles.length > 0) {
+      showError('Only PDF files are allowed');
+      return;
+    }
+    
+    // Add new files to the existing list
+    setClassFiles([...classFiles, ...files]);
+  };
+  
+  // Handle removing a PDF file
+  const handleRemoveFile = (fileName) => {
+    setClassFiles(classFiles.filter(file => file.name !== fileName));
+  };
+  
   // Handle copy class code to clipboard
   const handleCopyCode = () => {
     navigator.clipboard.writeText(classCode);
@@ -104,20 +116,19 @@ export default function CreateClass() {
     setTimeout(() => setCodeCopied(false), 2000);
   };
   
-  // Handle subject selection
-  const toggleSubject = (subject) => {
-    if (selectedSubjects.includes(subject)) {
-      setSelectedSubjects(selectedSubjects.filter(item => item !== subject));
-    } else {
-      setSelectedSubjects([...selectedSubjects, subject]);
-    }
+  // Format file size for display
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
   };
   
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!className.trim()) {
+    // Check if class name is provided
+    if (!className || className.trim() === '') {
       showError('Class name is required');
       return;
     }
@@ -125,16 +136,26 @@ export default function CreateClass() {
     setLoading(true);
     
     try {
-      const response = await instance.post('/api/classes/create', {
-        name: className,
-        description: classDescription,
-        subjects: selectedSubjects,
-        invitedEmails: studentList,
-        classCode
+      const formData = new FormData();
+      
+      formData.append('name', className);
+      formData.append('description', classDescription);
+      formData.append('classCode', classCode);
+      formData.append('subject', subject); // Changed from subjects array to single subject
+      formData.append('invitedEmails', JSON.stringify(studentList));
+      
+      classFiles.forEach(file => {
+        formData.append('classFiles', file);
+      });
+      
+      const response = await instance.post('/api/classes/create', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       });
       
       if (response.data.success) {
-        router.push('/'); // Redirect to dashboard on success
+        router.push('/');
       } else {
         showError(response.data.message || 'Failed to create class');
       }
@@ -151,17 +172,17 @@ export default function CreateClass() {
   };
   
   return (
-    <div className="min-h-screen bg-[#f8f5e9]">
+    <div className="min-h-screen bg-[#fcf9ea]">
       {/* Navigation Bar */}
-      <nav className="bg-[#e07a5f] text-white py-4 px-6 flex items-center justify-between">
+      <nav className="bg-[#d56c4e] text-white py-4 px-6 flex items-center justify-between">
         <div className="flex items-center">
-          <Link href="/" className="text-3xl font-cursive">
+          <Link href="/" style={{ fontFamily: "'Rage Italic', sans-serif" }} className="text-4xl font-bold text-black">
             Gradia
           </Link>
         </div>
         <div className="flex items-center space-x-6">
-          <Link href="/teacher/tests" className="hover:underline">Tests</Link>
-          <Link href="/teacher/analysis" className="hover:underline">Analysis</Link>
+          <Link href="/teacher/tests" className="font-sans font-medium transition-transform transform hover:scale-110">Tests</Link>
+          <Link href="/teacher/analysis" className="font-sans font-medium transition-transform transform hover:scale-110">Analysis</Link>
           <UserDropdown />
         </div>
       </nav>
@@ -190,7 +211,7 @@ export default function CreateClass() {
                 value={className}
                 onChange={(e) => setClassName(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e07a5f]"
-                placeholder="e.g., CSE F - Design and Analysis of Algorithms"
+                placeholder="e.g., CSE F"
                 required
               />
             </div>
@@ -210,42 +231,19 @@ export default function CreateClass() {
               />
             </div>
             
-            {/* Subjects */}
-            <div className="mb-6 relative">
-              <label htmlFor="subjects" className="block text-gray-700 font-medium mb-2">
-                Subjects
+            {/* Subject - Changed from dropdown to textbox */}
+            <div className="mb-6">
+              <label htmlFor="subject" className="block text-gray-700 font-medium mb-2">
+                Subject
               </label>
-              <div 
-                className="w-full px-4 py-2 border border-gray-300 rounded-md cursor-pointer bg-white"
-                onClick={() => setShowSubjectDropdown(!showSubjectDropdown)}
-              >
-                {selectedSubjects.length === 0 
-                  ? <span className="text-gray-500">Select subjects</span> 
-                  : <span>{selectedSubjects.join(', ')}</span>
-                }
-              </div>
-              
-              {showSubjectDropdown && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                  {availableSubjects.map((subject, index) => (
-                    <div 
-                      key={index}
-                      className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                        selectedSubjects.includes(subject) ? 'bg-gray-100' : ''
-                      }`}
-                      onClick={() => toggleSubject(subject)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedSubjects.includes(subject)}
-                        readOnly
-                        className="mr-2"
-                      />
-                      {subject}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <input
+                type="text"
+                id="subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e07a5f]"
+                placeholder="e.g., Operating Systems"
+              />
             </div>
             
             {/* Class Code */}
@@ -327,6 +325,63 @@ export default function CreateClass() {
                         <button
                           type="button"
                           onClick={() => handleRemoveStudent(email)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Class Materials (PDF Files) */}
+            <div className="mb-8">
+              <label className="block text-gray-700 font-medium mb-2">
+                Upload Class Materials
+              </label>
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => pdfInputRef.current.click()}
+                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-md text-gray-500 flex items-center justify-center hover:bg-gray-50"
+                >
+                  <Upload size={18} className="mr-2" />
+                  Upload PDF Materials
+                </button>
+                <input
+                  type="file"
+                  ref={pdfInputRef}
+                  onChange={handlePdfUpload}
+                  accept=".pdf"
+                  multiple
+                  className="hidden"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Only PDF files are accepted
+                </p>
+              </div>
+              
+              {/* PDF Files Preview */}
+              {classFiles.length > 0 && (
+                <div className="border border-gray-200 rounded-md p-3 bg-gray-50">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium text-gray-700">Class Materials ({classFiles.length})</span>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto">
+                    {classFiles.map((file, index) => (
+                      <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+                        <div className="flex items-center">
+                          <File size={18} className="text-red-500 mr-2" />
+                          <div>
+                            <p className="text-sm font-medium">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(file.name)}
                           className="text-red-500 hover:text-red-700"
                         >
                           <X size={16} />
