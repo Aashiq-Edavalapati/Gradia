@@ -18,7 +18,9 @@ const setupGoogleAuth = (userType) => {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: `/api/auth/${userType}/google/callback`,
+        callbackURL: process.env.NODE_ENV === "production" 
+          ? `${process.env.BACKEND_URL}/api/auth/${userType}/google/callback`
+          : `/api/auth/${userType}/google/callback`,
         passReqToCallback: true,
         scope: ["profile", "email"],
       },
