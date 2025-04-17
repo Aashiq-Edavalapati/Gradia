@@ -38,7 +38,10 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
-      sameSite: "Lax",
+      sameSite: process.env.NODE_ENV === "production"
+        ? "None"   // allow cross‑site in prod
+        : "Lax",   // localhost fallback
+      maxAge: 3153600000,
     },
   })
 );
@@ -52,18 +55,19 @@ setupGoogleAuth("teacher");
 
 // Now, define routes
 app.use("/api/auth", authRoutes);
-app.use("/api/classes", authMiddleware,classRoutes);
+app.use("/api/classes", authMiddleware, classRoutes);
 app.use("/api/tests", authMiddleware, testRoutes);
 
 const PORT = process.env.PORT || 8000;
 
 (async () => {
   try {
-      app.listen(PORT, () => {
-          console.log(`Server running on PORT: ${PORT}`);
-      });
-      await connectDb();
+    await connectDb(); // Ensure DB connection is established
+    app.listen(PORT, () => {
+      console.log(`Server running on PORT: ${PORT}`);
+    });
   } catch (error) {
-      console.error("Database connection failed", error);
+    console.error("Failed to start server or connect to database", error);
+    process.exit(1); // Exit with failure if startup fails
   }
 })();

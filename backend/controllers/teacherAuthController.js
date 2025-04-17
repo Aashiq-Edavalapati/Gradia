@@ -62,21 +62,27 @@ export const loginTeacher = async (req, res) => {
     res.cookie("token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "Strict",
+        sameSite: process.env.NODE_ENV === "production"
+          ? "None"   // allow cross‑site in prod
+          : "Lax",   // localhost fallback
         maxAge: 3153600000,
     });
 
     res.cookie("role", "teacher", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
+      sameSite: process.env.NODE_ENV === "production"
+        ? "None"   // allow cross‑site in prod
+        : "Lax",   // localhost fallback
       maxAge: 3153600000,
    });
 
    res.cookie("email", email, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    sameSite: process.env.NODE_ENV === "production"
+        ? "None"   // allow cross‑site in prod
+        : "Lax",   // localhost fallback
     maxAge: 3153600000,
   });
 
@@ -126,7 +132,7 @@ export const getTeacherTests = async (req, res) => {
       createdBy: teacherId,
       endTime: { $lt: currentTime },
     }).sort({ endTime: -1 });
-    console.log({ testsData, upcomingTests, previousTests });
+    // console.log({ testsData, upcomingTests, previousTests });
     res.status(200).json({ testsData, upcomingTests, previousTests });
   } catch (error) {
     res.status(500).json({ message: "Error fetching tests", error: error.message });
