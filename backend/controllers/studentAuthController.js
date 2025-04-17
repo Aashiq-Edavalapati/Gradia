@@ -37,6 +37,7 @@ export const registerStudent = async (req, res) => {
       sameSite: process.env.NODE_ENV === "production"
         ? "None"   // allow cross‑site in prod
         : "Lax",   // localhost fallback
+      path: '/',
       maxAge: 3153600000,  // Cookie expiration time (100 years)
     });
     
@@ -46,6 +47,7 @@ export const registerStudent = async (req, res) => {
       sameSite: process.env.NODE_ENV === "production"
         ? "None"   // allow cross‑site in prod
         : "Lax",   // localhost fallback
+      path: '/',
       maxAge: 3153600000,
     });
 
@@ -55,6 +57,7 @@ export const registerStudent = async (req, res) => {
       sameSite: process.env.NODE_ENV === "production"
         ? "None"   // allow cross‑site in prod
         : "Lax",   // localhost fallback
+      path: '/',
       maxAge: 3153600000,
     });
     
@@ -91,8 +94,9 @@ export const loginStudent = async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production"
-        ? "None"   // allow cross‑site in prod
-        : "Lax",   // localhost fallback
+          ? "None"   // allow cross‑site in prod
+          : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
     });
 
@@ -102,6 +106,7 @@ export const loginStudent = async (req, res) => {
       sameSite: process.env.NODE_ENV === "production"
         ? "None"   // allow cross‑site in prod
         : "Lax",   // localhost fallback
+      path: '/',
       maxAge: 3153600000,
     });
 
@@ -111,6 +116,7 @@ export const loginStudent = async (req, res) => {
       sameSite: process.env.NODE_ENV === "production"
         ? "None"   // allow cross‑site in prod
         : "Lax",   // localhost fallback
+      path: '/',
       maxAge: 3153600000,
     });
 

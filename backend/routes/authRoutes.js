@@ -48,6 +48,7 @@ router.get(
         sameSite: process.env.NODE_ENV === "production"
           ? "None"   // allow cross‑site in prod
           : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
       });
 
@@ -57,6 +58,7 @@ router.get(
         sameSite: process.env.NODE_ENV === "production"
           ? "None"   // allow cross‑site in prod
           : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
       });
 
@@ -66,6 +68,7 @@ router.get(
         sameSite: process.env.NODE_ENV === "production"
           ? "None"   // allow cross‑site in prod
           : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
       });
 
@@ -108,6 +111,7 @@ router.get(
         sameSite: process.env.NODE_ENV === "production"
           ? "None"   // allow cross‑site in prod
           : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
       });
 
@@ -117,6 +121,7 @@ router.get(
         sameSite: process.env.NODE_ENV === "production"
           ? "None"   // allow cross‑site in prod
           : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
       });
 
@@ -126,6 +131,7 @@ router.get(
         sameSite: process.env.NODE_ENV === "production"
           ? "None"   // allow cross‑site in prod
           : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
       });
 
@@ -135,6 +141,7 @@ router.get(
         sameSite: process.env.NODE_ENV === "production"
           ? "None"   // allow cross‑site in prod
           : "Lax",   // localhost fallback
+        path: '/',
         maxAge: 3153600000,
       });
 
@@ -204,6 +211,7 @@ router.post("/logout", (req, res) => {
       sameSite: process.env.NODE_ENV === "production"
         ? "None"   // allow cross‑site in prod
         : "Lax",   // localhost fallback
+      path: '/',
     });
   }
 
