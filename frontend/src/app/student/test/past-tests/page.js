@@ -11,59 +11,56 @@ export default function PastTestsPage() {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const [showHero, setShowHero] = useState(true);
+
+  const fetchTests = async () => {
+    try {
+      // Fetch test data
+      let TestData = await getTestsForStudent();
+      TestData = TestData.previousTests;
+      TestData = TestData.map((test, index) => ({
+        id: test._id || (index + 1).toString(),
+        title: test.title || 'Untitled Test',
+        description: test.description || 'No description available',
+        status: 'missed',
+        date: 'N/A',
+        createdAt: test.createdAt || "N/A",
+        duration: test.duration || 0,
+        score: 'N/A',
+        graded: false,
+        maxScore: test.maxMarks,
+        questions: test.questions?.length || 0,
+      }));
+
+      // Fetch submission data
+      const SubmissionData = await getSubmissionsForStudent();
+      
+      // Update TestData with scores from SubmissionData
+      TestData = TestData.map((test) => {
+        const submission = SubmissionData.find((sub) => sub.test === test.id);
+        if (submission) {
+          test.graded = submission.graded || false;
+          test.score = submission.totalScore || 0;
+          test.date = submission.submittedAt;
+          test.status = 'submitted';
+        }
+        return test;
+      });
+      setSubmissions(SubmissionData);
+      TestData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setTests(TestData);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching tests:', error);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchTests = async () => {
-      try {
-        // Fetch test data
-        let TestData = await getTestsForStudent();
-        TestData = TestData.previousTests;
-        TestData = TestData.map((test, index) => ({
-          id: test._id || (index + 1).toString(),
-          title: test.title || 'Untitled Test',
-          description: test.description || 'No description available',
-          status: 'missed',
-          date: 'N/A',
-          duration: test.duration || 0,
-          score: 'N/A',
-          maxScore: 100,
-          questions: test.questions?.length || 0,
-        }));
-
-        // Fetch submission data
-        const SubmissionData = await getSubmissionsForStudent();
-
-        // Update TestData with scores from SubmissionData
-        TestData = TestData.map((test) => {
-          const submission = SubmissionData.find((sub) => sub.test === test.id);
-          if (submission) {
-            test.score = submission.totalScore || 'N/A';
-            test.date = submission.submittedAt;
-            test.status = 'submitted';
-          }
-          return test;
-        });
-
-        console.log('TestData:', TestData);
-        console.log('SubmissionData:', SubmissionData);
-        setSubmissions(SubmissionData);
-        setTests(TestData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching tests:', error);
-        setLoading(false);
-      }
-    };
-
     fetchTests();
-    
-    // Hide hero section after 5 seconds
-    const timer = setTimeout(() => {
-      setShowHero(false);
-    }, 50000);
-    
-    return () => clearTimeout(timer);
+    const interval = setInterval(() => {
+      fetchTests();
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const formatDate = (dateString) => {
@@ -109,8 +106,12 @@ export default function PastTestsPage() {
   // Stats for hero section
   const completedTests = tests.filter(test => test.status === 'submitted').length;
   const averageScore = tests.reduce((acc, test) => {
-    if (test.score !== 'N/A') {
-      return acc + (test.score / test.maxScore) * 100;
+    if (
+      test.status === 'submitted' &&
+      test.score !== 'N/A' &&
+      Number(test.maxScore) !== 0
+    ) {
+      return acc + (Number(test.score) / Number(test.maxScore)) * 100;
     }
     return acc;
   }, 0) / (completedTests || 1);
@@ -118,83 +119,71 @@ export default function PastTestsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fff8e9] to-[#fdf9ea]">
       {/* Header */}
-      <nav className="bg-gradient-to-r from-[#d56c4e] to-[#e07e63] text-white px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
+      <nav className="bg-[#d56c4e] text-white px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
         <div className="flex items-center">
           <motion.div 
             initial={{ rotate: -5, scale: 0.9 }}
             animate={{ rotate: 0, scale: 1 }}
             transition={{ duration: 0.5, type: "spring" }}
           >
-            <h1 
-              style={{ fontFamily: "'Rage Italic', sans-serif" }}
-              className="text-4xl font-bold text-black relative"
-            >
+            <Link href="/" style={{ fontFamily: "'Rage Italic', sans-serif" }} className="text-4xl font-bold text-black relative">
               Gradia
-              <motion.span 
-                initial={{ width: 0 }}
-                animate={{ width: '100%' }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-                className="absolute bottom-0 left-0 h-1 bg-black rounded-full"
-              />
-            </h1>
+            </Link>
           </motion.div>
         </div>
         <div className="flex space-x-6 items-center">
-          <motion.span 
-            whileHover={{ scale: 1.05, y: -2 }}
-            className="cursor-pointer font-sans font-medium flex items-center"
-          >
-            <BookOpen size={18} className="mr-1.5" />
-            Practice
-          </motion.span>
-          <motion.span 
-            whileHover={{ scale: 1.05, y: -2 }}
-            className="cursor-pointer font-sans font-medium flex items-center"
-          >
-            <Award size={18} className="mr-1.5" />
-            Performance
-          </motion.span>
+          <Link href="/">
+            <motion.span 
+              whileHover={{ scale: 1.05 }}
+              className="cursor-pointer font-sans font-medium flex items-center"
+            >
+              Practice
+            </motion.span>
+          </Link>
+          <Link href="/student/test/past-tests">
+            <motion.span 
+              whileHover={{ scale: 1.05 }}
+              className="cursor-pointer font-sans font-medium flex items-center"
+            >
+              Performance
+            </motion.span>
+          </Link>
           <UserDropdown />
         </div>
       </nav>
 
-      {/* Hero Section - Animated and disappears after 5 seconds */}
-      <AnimatePresence>
-        {showHero && (
-          <motion.div 
-            initial={{ opacity: 0, height: "auto" }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.5 }}
-            className="bg-gradient-to-r from-[#d56c4e] to-[#e07e63] text-white px-8 py-12 mb-6"
-          >
-            <motion.div 
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="container mx-auto text-center"
-            >
-              <h2 className="text-4xl font-bold mb-4">Your Learning Journey</h2>
-              <p className="text-lg max-w-2xl mx-auto mb-8 opacity-90">Track your progress and review past evaluations to identify strengths and areas for improvement.</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 shadow-lg">
-                  <h3 className="text-xl font-semibold mb-1">Tests Taken</h3>
-                  <p className="text-3xl font-bold">{completedTests}</p>
-                </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 shadow-lg">
-                  <h3 className="text-xl font-semibold mb-1">Average Score</h3>
-                  <p className="text-3xl font-bold">{averageScore.toFixed(1)}%</p>
-                </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 shadow-lg">
-                  <h3 className="text-xl font-semibold mb-1">Missed Tests</h3>
-                  <p className="text-3xl font-bold">{tests.length - completedTests}</p>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Hero Section */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="bg-gradient-to-r from-[#d56c4e] to-[#e07e63] text-white px-8 py-12 mb-6"
+      >
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="container mx-auto text-center"
+        >
+          <h2 className="text-4xl font-bold mb-4">Your Learning Journey</h2>
+          <p className="text-lg max-w-2xl mx-auto mb-8 opacity-90">Track your progress and review past evaluations to identify strengths and areas for improvement.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 shadow-lg">
+              <h3 className="text-xl font-semibold mb-1">Tests Taken</h3>
+              <p className="text-3xl font-bold">{completedTests}</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 shadow-lg">
+              <h3 className="text-xl font-semibold mb-1">Average Score</h3>
+              <p className="text-3xl font-bold">{averageScore.toFixed(1)}%</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 shadow-lg">
+              <h3 className="text-xl font-semibold mb-1">Missed Tests</h3>
+              <p className="text-3xl font-bold">{tests.length - completedTests}</p>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
 
       {/* Main Content */}
       <main className="container mx-auto p-6">
@@ -241,7 +230,7 @@ export default function PastTestsPage() {
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="relative">
-              <div className="w-16 h-16 rounded-full border-4 border-[#f8e2d8] border-t-[#dd7a5f] animate-spin"></div>
+              <div className="w-12 h-12 rounded-full border-4 border-[#f8e2d8] border-t-[#dd7a5f] animate-spin"></div>
             </div>
           </div>
         ) : (
@@ -265,65 +254,78 @@ export default function PastTestsPage() {
                 animate="show"
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               >
-                {filteredTests.map((test) => (
-                  <motion.div key={test.id} variants={fadeIn}>
-                    <Link 
-                      href={`/student/test/past-tests/${test.id}`} 
-                      className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full transform hover:-translate-y-1 group"
-                    >
-                      <div className="p-6 flex-grow">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center ${
-                            test.status === 'submitted' 
-                              ? 'bg-emerald-100 text-emerald-700' 
-                              : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {getStatusIcon(test.status)}
-                            {test.status === 'submitted' ? 'Completed' : 'Missed'}
-                          </span>
-                          <span className="text-gray-400 text-sm">{test.questions} questions</span>
-                        </div>
-                        
-                        <h3 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-[#dd7a5f] transition-colors">{test.title}</h3>
-                        <p className="text-gray-600 mb-4 line-clamp-2">{test.description}</p>
-                        
-                        <div className="flex items-center text-gray-500 mb-2">
-                          <Calendar size={16} className="mr-2 text-[#dd7a5f]" />
-                          <span>{test.date !== 'N/A' ? formatDate(test.date) : 'Not attempted'}</span>
-                        </div>
-                        <div className="flex items-center text-gray-500 mb-4">
-                          <Clock size={16} className="mr-2 text-[#dd7a5f]" />
-                          <span>{test.duration} mins</span>
-                        </div>
-                        
-                        <div className="mb-2">
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="font-medium text-gray-700">Score</span>
-                            {test.score !== 'N/A' ? 
-                              <span className="font-bold">{test.score}/{test.maxScore}</span> : 
-                              <span className="text-gray-400 italic">Not attempted</span>
-                            }
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden shadow-inner">
-                            <div 
-                              className={`${calculateProgressColor(test.score)} h-2.5 rounded-full transition-all duration-500 ease-out`} 
-                              style={{ width: test.score !== 'N/A' ? `${(test.score / test.maxScore) * 100}%` : '0%' }}
-                            ></div>
+                {filteredTests.map((test) => {
+                  const isGrading = !test.graded && test.date !== 'N/A';
+
+                  return (
+                    <motion.div key={test.id} variants={fadeIn}>
+                      {isGrading ? (
+                        <div className="relative rounded-xl shadow-md h-full w-full backdrop-blur-md bg-white/90">
+                          <div className="h-full w-full flex flex-col items-center justify-center text-center px-6 py-10">
+                            <h3 className="text-2xl font-bold text-[#df7d61] mb-2 animate-pulse">Grading...</h3>
+                            <p className="text-sm text-gray-500 mb-2">Your submission is being evaluated. Please wait.</p>
                           </div>
                         </div>
-                      </div>
-                      
-                      <div className="bg-gradient-to-r from-[#f8e2d8] to-[#faeae3] p-4 text-right group-hover:bg-gradient-to-r group-hover:from-[#dd7a5f] group-hover:to-[#e58b73] transition-all duration-300">
-                        <span className="text-[#dd7a5f] font-medium group-hover:text-white transition-colors flex items-center justify-end">
-                          View Details 
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                          </svg>
-                        </span>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
+                      ) : (
+                        <Link 
+                          href={`/student/test/past-tests/${test.id}`} 
+                          className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full transform hover:-translate-y-1 group"
+                        >
+                          <div className="p-6 flex-grow">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center ${
+                                test.status === 'submitted' 
+                                  ? 'bg-emerald-100 text-emerald-700' 
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {getStatusIcon(test.status)}
+                                {test.status === 'submitted' ? 'Completed' : 'Missed'}
+                              </span>
+                              <span className="text-gray-400 text-sm">{test.questions} questions</span>
+                            </div>
+
+                            <h3 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-[#dd7a5f] transition-colors">{test.title}</h3>
+                            <p className="text-gray-600 mb-4 line-clamp-2">{test.description}</p>
+
+                            <div className="flex items-center text-gray-500 mb-2">
+                              <Calendar size={16} className="mr-2 text-[#dd7a5f]" />
+                              <span>{test.date !== 'N/A' ? formatDate(test.date) : 'Not attempted'}</span>
+                            </div>
+                            <div className="flex items-center text-gray-500 mb-4">
+                              <Clock size={16} className="mr-2 text-[#dd7a5f]" />
+                              <span>{test.duration} mins</span>
+                            </div>
+
+                            <div className="mb-2">
+                              <div className="flex justify-between text-sm mb-1">
+                                <span className="font-medium text-gray-700">Score</span>
+                                {test.score !== 'N/A' ? 
+                                  <span className="font-bold">{test.score}/{test.maxScore}</span> : 
+                                  <span className="text-gray-400 italic">Not attempted</span>
+                                }
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden shadow-inner">
+                                <div 
+                                  className={`${calculateProgressColor(test.score)} h-2.5 rounded-full transition-all duration-500 ease-out`} 
+                                  style={{ width: test.score !== 'N/A' ? `${(test.score / test.maxScore) * 100}%` : '0%' }}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-gradient-to-r from-[#f8e2d8] to-[#faeae3] p-4 text-right group-hover:bg-gradient-to-r group-hover:from-[#dd7a5f] group-hover:to-[#e58b73] transition-all duration-300">
+                            <span className="text-[#dd7a5f] font-medium group-hover:text-white transition-colors flex items-center justify-end">
+                              View Details 
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                              </svg>
+                            </span>
+                          </div>
+                        </Link>
+                      )}
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             )}
           </>

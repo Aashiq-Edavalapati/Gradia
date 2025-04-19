@@ -1,29 +1,177 @@
+import axios from "axios";
+import jwt from 'jsonwebtoken';
+import FormData from "form-data";
+import { Buffer } from "buffer";
 import Test from "../models/Test.js";
 import Class from "../models/Class.js";
 import Student from "../models/Student.js";
-import jwt from 'jsonwebtoken';
 import Submission from "../models/Submission.js";
+
+export const gradeSubmission = async (submissionId) => {
+  const submission = await Submission.findById(submissionId);
+  if (!submission) throw new Error("Submission not found");
+
+  const test = await Test.findById(submission.test);
+  if (!test) throw new Error("Test not found");
+
+  const classId = test.classAssignment;
+  let totalScore = 0;
+  const gradedAnswers = [];
+
+  for (const ans of submission.answers) {
+    const question = test.questions.find(q => q._id.toString() === ans.questionId);
+    if (!question) continue;
+
+    let score = 0;
+    let feedback = "";
+
+    if (question.type === "typed") {
+      try {
+        const gradingPayload = {
+          question: question.questionText,
+          student_answer: ans.answerText,
+          max_mark: question.maxMarks,
+          rubric: question.rubric ?? null,
+          bucket_name: classId,
+        };
+
+        const response = await axios.post(
+          `${process.env.GRADIA_PYTHON_BACKEND_URL}/grade`,
+          gradingPayload,
+          {
+            headers: {
+              "x-api-key": process.env.GRADIA_API_KEY,
+            },
+          }
+        );
+
+        const { grade, feedback: fb, reference } = response.data;
+        score = grade;
+        feedback = `${fb}${reference ? ` \nReference: ${reference}` : ""}`;
+      } catch (err) {
+        console.error(`Grading failed for typed question ${ans.questionId}:`, err.message);
+      }
+    }
+
+    else if (question.type === "coding") {
+      try {
+        const source_code = ans.codeAnswer;
+        const language = "python3";
+
+        const test_cases = question.testCases.map((tc) => ({
+          input: tc.input,
+          expected_output: tc.output,
+        }));
+
+        const codingPayload = {
+          source_code,
+          language,
+          test_cases,
+        };
+
+        const response = await axios.post(
+          `${process.env.GRADIA_PYTHON_BACKEND_URL}/submit-code`,
+          codingPayload,
+          {
+            headers: {
+              "x-api-key": process.env.GRADIA_API_KEY,
+            },
+          }
+        );
+
+        const { passed_test_cases, total_test_cases } = response.data;
+
+        const perTestMark = question.maxMarks / total_test_cases;
+        score = Math.round(perTestMark * passed_test_cases);
+        feedback = `${passed_test_cases}/${total_test_cases} test cases passed.`;
+      } catch (err) {
+        console.error(`Grading failed for coding question ${ans.questionId}:`, err.message);
+      }
+    }
+
+    else if (question.type === "handwritten") {
+      try {
+        const base64Data = ans.fileUrl.split(",")[1]; 
+        const imageBuffer = Buffer.from(base64Data, "base64");
+
+        const formData = new FormData();
+        formData.append("file", imageBuffer, {
+          filename: "handwritten.jpg",
+          contentType: "image/jpeg",
+        });
+
+        const ocrResponse = await axios.post(
+          `${process.env.GRADIA_PYTHON_BACKEND_URL}/handwritten-ocr`,
+          formData,
+          {
+            headers: {
+              ...formData.getHeaders(),
+              "x-api-key": process.env.GRADIA_API_KEY,
+            },
+          }
+        );
+
+        const extractedText = ocrResponse.data.extracted_text;
+
+        const gradingPayload = {
+          question: question.questionText,
+          student_answer: extractedText,
+          max_mark: question.maxMarks,
+          rubric: question.rubric ?? null,
+          bucket_name: classId,
+        };
+
+        const gradingResponse = await axios.post(
+          `${process.env.GRADIA_PYTHON_BACKEND_URL}/grade`,
+          gradingPayload,
+          {
+            headers: {
+              "x-api-key": process.env.GRADIA_API_KEY,
+            },
+          }
+        );
+
+        const { grade, feedback: fb, reference } = gradingResponse.data;
+        score = grade;
+        feedback = `${fb}${reference ? ` \nReference: ${reference}` : ""}`;
+      } catch (err) {
+        console.error(`Grading failed for handwritten question ${ans.questionId}:`, err.message);
+      }
+    }
+
+    totalScore += score;
+
+    gradedAnswers.push({
+      ...ans,
+      score,
+      feedback,
+    });
+  }
+
+  submission.answers = gradedAnswers;
+  submission.totalScore = totalScore;
+  submission.graded = true;
+
+  await submission.save();
+
+  return { message: "Grading complete", submissionId };
+};
 
 export const createTest = async (req, res) => {
   try {
-    // Extract JWT token from cookies
     const token = req.cookies.token;
     if (!token) return res.status(401).json({ message: "Unauthorized" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const teacherId = decoded.id;
 
-    // Extract test data from request body
     const {
       title, description, startTime, endTime, duration, classAssignment, questions, isDraft, createdBy, rubric, files
     } = req.body;
-    // console.log(req.body);
-    // Validate required fields
     if (!title || !startTime || !endTime || !duration || !classAssignment || !questions.length) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Create new test
     const newTest = new Test({
       title,
       description,
@@ -35,18 +183,16 @@ export const createTest = async (req, res) => {
       questions,
       rubric,
       files,
-      isDraft: isDraft ?? true, // Default to draft if not provided
+      isDraft: isDraft ?? true,
     });
 
     newTest.maxMarks = questions.reduce((total, question) => total + (question.maxMarks || 0), 0);
 
-    // Save to DB
     await newTest.save();
 
-    // Add the test to the assigned class
     await Class.findByIdAndUpdate(
       classAssignment,
-      { $push: { tests: newTest._id } }, // Add test ID to class
+      { $push: { tests: newTest._id } },
       { new: true }
     );
 
@@ -77,63 +223,118 @@ export const getTestById = async (req, res) => {
   }
 };
 
-/**
- * @desc Submit test
- * @route POST /api/tests/submit/:testId
- * @access Student (via token)
- */
 export const submitTest = async (req, res) => {
   try {
     const { testId } = req.params;
-    const token = req.cookies.token; 
+    const token = req.cookies.token;
     const { answers } = req.body;
 
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized: No token provided" });
-    }
+    if (!token) return res.status(401).json({ message: "Unauthorized" });
 
-    // Decode the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const studentId = decoded.id;
 
-    // Validate Test
-    const test = await Test.findById(testId);
-    if (!test) return res.status(404).json({ message: "Test not found" });
+    const [test, student] = await Promise.all([
+      Test.findById(testId),
+      Student.findById(studentId),
+    ]);
 
-    // Validate Student
-    const student = await Student.findById(studentId);
-    if (!student) return res.status(404).json({ message: "Student not found" });
+    if (!test || !student)
+      return res.status(404).json({ message: "Test or Student not found" });
 
-    // Check if submission already exists
     const existingSubmission = await Submission.findOne({ test: testId, student: studentId });
     if (existingSubmission) {
       return res.status(400).json({ message: "Test already submitted" });
     }
 
-    // Validate Answers
     for (const ans of answers) {
       const question = test.questions.find(q => q._id === ans.questionId);
       if (!question) {
         return res.status(400).json({ message: `Invalid question ID: ${ans.questionId}` });
       }
-      
       if (question.type !== ans.questionType) {
         return res.status(400).json({ message: `Incorrect question type for question ID: ${ans.questionId}` });
       }
     }
 
-    // Create Submission
     const submission = new Submission({
       test: testId,
       student: studentId,
       answers,
+      totalScore: 0,
+      graded: false,
     });
 
     await submission.save();
-    res.status(201).json({ message: "Test submitted successfully", submission });
 
+    gradeSubmission(submission._id).catch((err) => {
+      console.error("Failed to trigger grading:", err.message);
+    });
+
+    res.status(201).json({
+      message: "Submission received. Grading will be done soon.",
+      submissionId: submission._id,
+    });
   } catch (error) {
     console.error("Error submitting test:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getHeatmapData = async (req, res) => {
+  try {
+    // Decode token to get teacher ID
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: "Unauthorized: No token provided" });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const teacherId = decoded.id;
+
+    // Fetch only classes associated with the logged-in teacher
+    const classes = await Class.find({ teacher: teacherId }, 'name _id');
+
+    const heatmapData = {};
+
+    for (const classDoc of classes) {
+      const classId = classDoc._id;
+      heatmapData[classDoc.name] = {};
+
+      const tests = await Test.find({ classAssignment: classId }, '_id title questions createdAt', { sort: { createdAt: -1 } });
+
+      for (const test of tests) {
+        const testId = test._id;
+        const totalPossibleMarks = test.questions.reduce((sum, q) => sum + q.maxMarks, 0);
+        const submissions = await Submission.find({ test: testId, graded: true }, 'totalScore student');
+
+        if (submissions.length === 0) {
+          heatmapData[classDoc.name][test.title] = { 
+            percentage: 'NA', 
+            color: 'bg-gray-200',
+            createdAt: test.createdAt // Include createdAt timestamp
+          };
+          continue;
+        }
+
+        const totalScoreSum = submissions.reduce((sum, sub) => sum + sub.totalScore, 0);
+        const numStudents = submissions.length;
+        const averagePercentage = (totalScoreSum * 100) / (numStudents * totalPossibleMarks);
+
+        let color = 'bg-green-500';
+        if (averagePercentage < 50) color = 'bg-red-500';
+        else if (averagePercentage <= 75) color = 'bg-orange-400';
+
+        heatmapData[classDoc.name][test.title] = { 
+          percentage: averagePercentage.toFixed(2) + '%', 
+          color,
+          createdAt: test.createdAt // Include createdAt timestamp
+        };
+      }
+    }
+
+    // console.log('Heatmap data:', heatmapData);
+    res.json(heatmapData);
+  } catch (error) {
+    console.error('Heatmap data error:', error);
+    res.status(500).json({ message: 'Error fetching heatmap data', error: error.message });
   }
 };

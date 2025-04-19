@@ -23,7 +23,7 @@ const OAuthSuccess = () => {
     if (token) {
       window.location.href = `/`;
     } else {
-      window.location.href = `/signin`;
+      window.location.href = '/signin';
     }
   }, [searchParams, router, showError]);
 
