@@ -317,7 +317,6 @@ const updateTestCase = (questionIndex, testCaseIndex, field, value) => {
       }
     } catch (err) {
       console.error(err);
-      setMaterialError('An error occurred while checking class materials.');
     }
   };
 
@@ -328,7 +327,7 @@ const updateTestCase = (questionIndex, testCaseIndex, field, value) => {
     if (isDraft) {
       try {
         // Draft saving logic
-        console.log('Saving test as draft:', { ...testData, isDraft });
+        // console.log('Saving test as draft:', { ...testData, isDraft });
         await new Promise(resolve => setTimeout(resolve, 1000));
         alert('Test saved as draft!');
       } catch (error) {
@@ -344,21 +343,39 @@ const updateTestCase = (questionIndex, testCaseIndex, field, value) => {
   // Confirmation modal submission handler
   const handleConfirmPublish = async () => {
     try {
-      const updatedTestData = { ...testData, isDraft: false, classesAssignment: testData.classAssignment, createdBy: userData._id };
-      console.log("Publishing test: ", updatedTestData);
+      // console.log('Publishing test:', { ...testData, isDraft: false });
+      const updatedTestData = { ...testData, isDraft: false,
+        classesAssignment: testData.classAssignment, 
+        createdBy: userData._id,
+        startTime: new Date(testData.startTime).toISOString(),
+        endTime: new Date(testData.endTime).toISOString(),
+      };
+      updatedTestData.questions = updatedTestData.questions.map((question) => {
+        return {
+          ...question,
+          ...(question.type === 'coding' && {
+            codingLanguage: question.codingLanguage || 'Any Language',
+          }),
+        };
+      });
+      
+      // console.log("Publishing test: ", updatedTestData);
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       const response = await publishTest(updatedTestData);
       if(response) {
+        // Close modal and show success message
         setIsPublishModalOpen(false);
         localStorage.setItem("notification", JSON.stringify({ type: "success", message: "Successfully created test!" }));
 
+        // Redirect to dashboard on success
         router.push('/');
       } else {
         showError("Failed to publish test. Please try again later.");
       }
     } catch (error) {
       console.error('Error publishing test:', error);
+      // alert('Failed to publish test. Please try again.');
       showError("Failed to publish test. Please try again.");
     }
   };
@@ -969,12 +986,12 @@ const updateTestCase = (questionIndex, testCaseIndex, field, value) => {
                 </section>
 
                 {/* Validation Warnings */}
-                {(!testData.title || !testData.startTime || !testData.endTime || !testData.classAssignment || testData.questions.length === 0) && (
+                {(!testData.title || !testData.startTime || !testData.endTime || !testData.classAssignment || testData.questions.length === 0 || classFiles.length === 0) && (
                   <div className="bg-yellow-100/70 border border-yellow-300 p-5 rounded-xl shadow-sm">
                     <div className="flex items-start gap-3">
                       <span className="text-yellow-500 text-xl">⚠️</span>
                       <div>
-                        <p className="text-sm font-semibold text-yellow-800 mb-1">Your test is incomplete! Complete the following:</p>
+                        <p className="text-sm font-semibold text-yellow-800 mb-1">Your test can&apos;t be published yet! Complete the following:</p>
                         <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
                           {!testData.title && <li>Add a test title</li>}
                           {!testData.startTime && <li>Set a start time</li>}
